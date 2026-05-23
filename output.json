@@ -1,0 +1,224 @@
+{
+  "generated_at": "2026-05-23T20:45:40.188Z",
+  "summary": {
+    "total_items": 8,
+    "p0_count": 1,
+    "p1_count": 0,
+    "requires_human_review_count": 8
+  },
+  "items": [
+    {
+      "item_id": "item_1",
+      "classification": "other",
+      "urgency": "P2",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [
+        {
+          "call_id": "01KSB9C8ETEHVZQC1YF8C7A0GN",
+          "name": "lookup_policy",
+          "args": {
+            "topic": "service_lines"
+          },
+          "result_summary": "2 policy snippets for service_lines"
+        }
+      ],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [],
+      "escalation": null,
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    },
+    {
+      "item_id": "item_2",
+      "classification": "safeguarding",
+      "urgency": "P0",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [
+        {
+          "call_id": "01KSB9C8EVWCCZE6SW3QPBFNKQ",
+          "name": "escalate",
+          "args": {
+            "item_id": "item_2",
+            "reason": "Safeguarding disclosure in voicemail — manual review required",
+            "severity": "P0"
+          },
+          "result_summary": "created escalation esc_01ksb9c8ev0z4q953ayvmdpv70 severity P0"
+        }
+      ],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [],
+      "escalation": {
+        "reason": "Safeguarding disclosure in voicemail — manual review required",
+        "severity": "P0"
+      },
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    },
+    {
+      "item_id": "item_3",
+      "classification": "other",
+      "urgency": "P2",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [
+        {
+          "call_id": "01KSB9C8EW6Q0V3JXX4K41KMDS",
+          "name": "create_task",
+          "args": {
+            "assignee": "intake",
+            "due": "2026-04-28",
+            "notes": "Placeholder — full routing in next step",
+            "title": "Scaffold triage: item_3"
+          },
+          "result_summary": "created task task_01ksb9c8evw30hrdffmq2endjd for intake"
+        }
+      ],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [
+        "task_01ksb9c8evw30hrdffmq2endjd"
+      ],
+      "escalation": null,
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    },
+    {
+      "item_id": "item_4",
+      "classification": "other",
+      "urgency": "P2",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [],
+      "escalation": null,
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    },
+    {
+      "item_id": "item_5",
+      "classification": "other",
+      "urgency": "P2",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [],
+      "escalation": null,
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    },
+    {
+      "item_id": "item_6",
+      "classification": "other",
+      "urgency": "P2",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [],
+      "escalation": null,
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    },
+    {
+      "item_id": "item_7",
+      "classification": "other",
+      "urgency": "P2",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [],
+      "escalation": null,
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    },
+    {
+      "item_id": "item_8",
+      "classification": "other",
+      "urgency": "P2",
+      "requires_human_review": true,
+      "extracted_intake": {
+        "child_name": null,
+        "dob_or_age": null,
+        "parent_contact": null,
+        "discipline": null,
+        "diagnosis_or_concern": null,
+        "payer": null,
+        "member_id": null
+      },
+      "missing_info": [],
+      "tools_called": [],
+      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "draft_reply": null,
+      "task_ids": [],
+      "escalation": null,
+      "decision_rationale": "Scaffold placeholder — full triage pending"
+    }
+  ]
+}

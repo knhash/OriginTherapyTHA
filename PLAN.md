@@ -116,12 +116,23 @@ After all tool calls:
 - `draft_reply` = body string passed to `draft_message()`; `null` if generate failed or fallback path
 - `requires_human_review` = `true` (all items, always)
 
+## Status
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Scaffold + SDK install, validator green | **Done** |
+| 2 | Claude call 1 — parse/classify/flags | Pending |
+| 3 | Deterministic tool routing | Pending |
+| 4 | Claude call 2 — draft reply + rationale | Pending |
+| 5 | Output assembly + full validate pass | Pending |
+| 6 | Edge case hardening + README | Pending |
+
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `package.json` | add `@anthropic-ai/sdk` |
-| `src/agent.ts` | full implementation |
+| `package.json` | add `@anthropic-ai/sdk`, fix `fast-uri` vuln |
+| `src/agent.ts` | scaffold: `runAgent` + `triageItem`, 3-tool threshold, valid schema output |
 
 ## What Is Not Built
 
