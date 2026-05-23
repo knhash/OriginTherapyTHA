@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIError } from "@anthropic-ai/sdk";
 import type {
   Classification,
   ExtractedIntake,
@@ -57,9 +57,6 @@ interface GenerateResult {
 
 const PARSE_SYSTEM = `You are a triage assistant for Cedar Kids Therapy, a pediatric therapy practice (SLP, OT, PT, ages 0-18).
 
-Classify each inbox item and extract structured intake information.
-Return ONLY a valid JSON object — no prose, no markdown, no explanation.
-
 URGENCY:
 - P0: safeguarding / imminent harm / mandated-reporter concern — same-hour human escalation
 - P1: same-day operational issue requiring prompt staff action (e.g. same-day cancellation/reschedule)
@@ -81,32 +78,7 @@ of: child DOB, parent/guardian contact, insurance/member ID.
 DISCIPLINE values: "SLP", "OT", "PT" only — return as an array or null.
 
 REPLY CHANNEL: use "portal" if channel=portal_message, "phone" if channel=voicemail_transcript,
-"email" if channel=email or fax_referral. Override to "phone" if body shows caller preference.
-
-OUTPUT SCHEMA (JSON only):
-{
-  "classification": "<enum>",
-  "urgency": "P0|P1|P2|P3",
-  "extracted_intake": {
-    "child_name": "<string|null>",
-    "dob_or_age": "<string|null>",
-    "parent_contact": "<string|null>",
-    "discipline": ["SLP"|"OT"|"PT"] or null,
-    "diagnosis_or_concern": "<string|null>",
-    "payer": "<string|null>",
-    "member_id": "<string|null>"
-  },
-  "missing_info": ["<missing field label>"],
-  "flags": {
-    "is_safeguarding": false,
-    "is_same_day_cancellation": false,
-    "needs_spanish": false,
-    "is_incomplete_referral": false,
-    "is_clinical_question": false
-  },
-  "reply_recipient": "<name or email of the person to reply to>",
-  "reply_channel": "email|phone|portal"
-}`;
+"email" if channel=email or fax_referral. Override to "phone" if body shows caller preference.`;
 
 const GENERATE_SYSTEM = `You are a reply-drafting assistant for Cedar Kids Therapy, a pediatric therapy practice.
 Draft a professional, empathetic outbound message and recommend the next staff action.
@@ -118,14 +90,126 @@ HARD RULES — any violation is a critical failure:
 4. If needs_spanish is true: write draft_reply entirely in Spanish.
 5. Do not invent or add PHI not present in the original message.
 
-TONE: Warm, professional, appropriate for families or referring providers.
+TONE: Warm, professional, appropriate for families or referring providers.`;
 
-Return ONLY a valid JSON object — no prose, no markdown:
-{
-  "draft_reply": "<outbound message body — plain text, no HTML>",
-  "recommended_next_action": "<one sentence: what the reviewing staff member should do next>",
-  "decision_rationale": "<one to two sentences: why this routing and reply were chosen>"
-}`;
+const PARSE_TOOL: Anthropic.Messages.Tool = {
+  name: "triage_parse",
+  description:
+    "Classify a Cedar Kids Therapy inbox item and extract structured intake data.",
+  cache_control: { type: "ephemeral" },
+  input_schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "classification",
+      "urgency",
+      "extracted_intake",
+      "missing_info",
+      "flags",
+      "reply_recipient",
+      "reply_channel",
+    ],
+    properties: {
+      classification: {
+        type: "string",
+        enum: [
+          "new_referral",
+          "existing_patient_request",
+          "scheduling",
+          "clinical_question",
+          "billing_question",
+          "missing_paperwork",
+          "provider_followup",
+          "complaint",
+          "safeguarding",
+          "spam",
+          "other",
+        ],
+      },
+      urgency: { type: "string", enum: ["P0", "P1", "P2", "P3"] },
+      extracted_intake: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "child_name",
+          "dob_or_age",
+          "parent_contact",
+          "discipline",
+          "diagnosis_or_concern",
+          "payer",
+          "member_id",
+        ],
+        properties: {
+          child_name: { type: ["string", "null"] },
+          dob_or_age: { type: ["string", "null"] },
+          parent_contact: { type: ["string", "null"] },
+          discipline: {
+            oneOf: [
+              { type: "null" },
+              {
+                type: "array",
+                items: { type: "string", enum: ["SLP", "OT", "PT"] },
+                minItems: 1,
+              },
+            ],
+          },
+          diagnosis_or_concern: { type: ["string", "null"] },
+          payer: { type: ["string", "null"] },
+          member_id: { type: ["string", "null"] },
+        },
+      },
+      missing_info: { type: "array", items: { type: "string" } },
+      flags: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "is_safeguarding",
+          "is_same_day_cancellation",
+          "needs_spanish",
+          "is_incomplete_referral",
+          "is_clinical_question",
+        ],
+        properties: {
+          is_safeguarding: { type: "boolean" },
+          is_same_day_cancellation: { type: "boolean" },
+          needs_spanish: { type: "boolean" },
+          is_incomplete_referral: { type: "boolean" },
+          is_clinical_question: { type: "boolean" },
+        },
+      },
+      reply_recipient: { type: "string" },
+      reply_channel: { type: "string", enum: ["email", "phone", "portal"] },
+    },
+  },
+};
+
+const GENERATE_TOOL: Anthropic.Messages.Tool = {
+  name: "triage_generate",
+  description:
+    "Draft an outbound reply and recommend the next staff action for a Cedar Kids Therapy inbox item.",
+  cache_control: { type: "ephemeral" },
+  input_schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["draft_reply", "recommended_next_action", "decision_rationale"],
+    properties: {
+      draft_reply: {
+        type: "string",
+        description:
+          "Outbound message body — plain text, no HTML. Write the actual message.",
+      },
+      recommended_next_action: {
+        type: "string",
+        description: "One sentence: what the reviewing staff member should do next.",
+      },
+      decision_rationale: {
+        type: "string",
+        description:
+          "One to two sentences: why this routing and reply were chosen.",
+      },
+    },
+  },
+};
 
 function buildGenerateUserContent(
   item: InboxItem,
@@ -160,35 +244,27 @@ ${item.body}`;
 
 // ── LLM helpers ───────────────────────────────────────────────────────────────
 
-function extractJson(text: string): string {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  return fenced ? fenced[1] : text.trim();
-}
-
 async function claudeParse(item: InboxItem): Promise<ParseResult | null> {
-  const userContent = buildParseUserContent(item);
-  const MAX_RETRIES = 2;
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const content =
-      attempt === 0 ? userContent : `${userContent}\n\nReturn ONLY valid JSON.`;
-    try {
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 500,
-        system: PARSE_SYSTEM,
-        messages: [{ role: "user", content }],
-      });
-
-      const raw =
-        response.content[0].type === "text" ? response.content[0].text : "";
-      return JSON.parse(extractJson(raw)) as ParseResult;
-    } catch {
-      if (attempt === MAX_RETRIES) return null;
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system: PARSE_SYSTEM,
+      tools: [PARSE_TOOL],
+      tool_choice: { type: "tool", name: "triage_parse" },
+      messages: [{ role: "user", content: buildParseUserContent(item) }],
+    });
+    const block = response.content.find(
+      (b): b is Anthropic.Messages.ToolUseBlock =>
+        b.type === "tool_use" && b.name === "triage_parse",
+    );
+    return block ? (block.input as ParseResult) : null;
+  } catch (err) {
+    if (err instanceof APIError) {
+      console.error(`APIError claudeParse: ${err.status} ${err.message}`);
     }
+    return null;
   }
-
-  return null;
 }
 
 async function claudeGenerate(
@@ -196,29 +272,26 @@ async function claudeGenerate(
   parsed: ParseResult,
   toolContext: string[],
 ): Promise<GenerateResult | null> {
-  const userContent = buildGenerateUserContent(item, parsed, toolContext);
-  const MAX_RETRIES = 2;
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const content =
-      attempt === 0 ? userContent : `${userContent}\n\nReturn ONLY valid JSON.`;
-    try {
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 600,
-        system: GENERATE_SYSTEM,
-        messages: [{ role: "user", content }],
-      });
-
-      const raw =
-        response.content[0].type === "text" ? response.content[0].text : "";
-      return JSON.parse(extractJson(raw)) as GenerateResult;
-    } catch {
-      if (attempt === MAX_RETRIES) return null;
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system: GENERATE_SYSTEM,
+      tools: [GENERATE_TOOL],
+      tool_choice: { type: "tool", name: "triage_generate" },
+      messages: [{ role: "user", content: buildGenerateUserContent(item, parsed, toolContext) }],
+    });
+    const block = response.content.find(
+      (b): b is Anthropic.Messages.ToolUseBlock =>
+        b.type === "tool_use" && b.name === "triage_generate",
+    );
+    return block ? (block.input as GenerateResult) : null;
+  } catch (err) {
+    if (err instanceof APIError) {
+      console.error(`APIError claudeGenerate: ${err.status} ${err.message}`);
     }
+    return null;
   }
-
-  return null;
 }
 
 // ── Deterministic tool routing ────────────────────────────────────────────────
@@ -423,8 +496,92 @@ async function routeAndCallTools(
     }
   }
 
+  // ── Billing question ────────────────────────────────────────────────────
+  if (parsed.classification === "billing_question") {
+    const policy = await lookup_policy({ topic: "insurance" });
+    toolContext.push(`Insurance policy: ${policy.data.snippets.join(" ")}`);
+    const task = await create_task({
+      assignee: "billing",
+      title: `Billing question: ${intake.child_name ?? item.id}`,
+      due: nextBusinessDayIso(),
+      notes: `Billing inquiry from ${item.sender}. Body: ${item.body.slice(0, 300)}`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── Complaint ────────────────────────────────────────────────────────────
+  if (parsed.classification === "complaint") {
+    const policy = await lookup_policy({ topic: "service_lines" });
+    toolContext.push(`Service lines policy: ${policy.data.snippets.join(" ")}`);
+    if (parsed.urgency === "P1" || parsed.urgency === "P0") {
+      const reason = `Urgent complaint from ${item.sender}`;
+      await escalate({ item_id: item.id, reason, severity: "P1" });
+      toolContext.push(`Escalated P1: ${reason}`);
+      escalationRecord = { reason, severity: "P1" };
+    }
+    const task = await create_task({
+      assignee: "front_desk",
+      title: `Complaint: ${intake.child_name ?? item.id}`,
+      due: nextBusinessDayIso(),
+      notes: `From ${item.sender}. Body: ${item.body.slice(0, 300)}`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── Spam ─────────────────────────────────────────────────────────────────
+  if (parsed.classification === "spam") {
+    const task = await create_task({
+      assignee: "front_desk",
+      title: `Spam/no-action: ${item.id}`,
+      due: nextBusinessDayIso(),
+      notes: `Classified as spam. Logged for audit. Sender: ${item.sender}.`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── Missing paperwork ────────────────────────────────────────────────────
+  if (parsed.classification === "missing_paperwork") {
+    const policy = await lookup_policy({ topic: "service_lines" });
+    toolContext.push(`Service lines policy: ${policy.data.snippets.join(" ")}`);
+    const task = await create_task({
+      assignee: "intake",
+      title: `Missing paperwork: ${intake.child_name ?? item.id}`,
+      due: nextBusinessDayIso(),
+      notes: `Missing: ${parsed.missing_info.join(", ") || "unspecified"}. Contact: ${item.sender}. Body: ${item.body.slice(0, 200)}`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── Provider follow-up ───────────────────────────────────────────────────
+  if (parsed.classification === "provider_followup") {
+    if (intake.child_name) {
+      const pat = await search_patient({
+        name: intake.child_name,
+        dob: parseDob(intake.dob_or_age),
+      });
+      toolContext.push(`Patient lookup: ${pat.result_summary}`);
+    }
+    const task = await create_task({
+      assignee: "intake",
+      title: `Provider follow-up: ${intake.child_name ?? item.id} — ${item.sender.slice(0, 60)}`,
+      due: nextBusinessDayIso(),
+      notes: `Provider follow-up from ${item.sender}. Body: ${item.body.slice(0, 300)}`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+    return { taskIds, escalationRecord, toolContext };
+  }
+
   // ── Catch-all for unmatched classifications ─────────────────────────────
-  // Handles: scheduling (non-same-day), billing_question, complaint, other, etc.
+  // Handles: scheduling (non-same-day), other, and any future classification values.
   if (taskIds.length === 0 && toolContext.length === 0) {
     const task = await create_task({
       assignee: "intake",
@@ -474,7 +631,7 @@ async function triageItem(item: InboxItem): Promise<ItemOutput> {
         task_ids: [task.data.task_id],
         escalation: { reason, severity: "P1" },
         decision_rationale:
-          "LLM parse exhausted all retries; item routed to manual intake queue.",
+          "LLM parse returned null (APIError); item routed to manual intake queue.",
       };
     }
 
