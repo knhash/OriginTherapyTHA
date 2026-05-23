@@ -1,3 +1,12 @@
 - Reinforcement learning
     - Setup self learning loop with epsilon greedy / multi armed bandits to train a local model on decision patterns. Use LLM initially to decide, then slowly deprecate its use by using it as a judge instead with some probability to fine tune the local model.
     - Two distinct components: MAB controls the *exploration policy* (when to use local model vs. LLM), while the LLM acts as a *reward model* (scores local model outputs to generate the training signal). End state: cheap local inference for routine classifications, LLM only for edge cases.
+    - Reward signal is delayed — "did this triage work?" may only surface days later. Train on immediate signals (did the front desk modify the draft?) or outcome signals (did the patient show up?). Immediate is noisier; outcome requires linking triage to downstream events.
+    - Prerequisite: move toward structured classification labels (priority, routing, required actions) before a local model can learn from the output. Current free-text `action_plan` is not fine-tunable.
+- Online Training and Feedback
+    - Keep track of the deployed system inputs, outputs and logs to revisit system performance. Use the signals from the end users - they accepted it or escalated it or modified it, all good signals to iteratively improve the system. Maintain a golden dataset of good responses and validate the system against it weekly.
+    - Log diffs at field-level, not just accept/escalate. A change to priority is a different signal than a change to the draft message.
+- DO NOT TRUST LLM COMPLETELY
+    - Have a human in the loop mechanism. Everything should be auditable, everything should move towards eventual determinism. Always remember, stochastic processes are not 100% accurate, treat all AI native systems with that lens.
+    - Add confidence thresholds: surface a `review_required` flag or score so auto-processing vs. human review is a spectrum, not binary.
+    - Roadmap order: #3 is philosophy from day one, #2 is the first production step, #1 is the mature-system optimization once you have enough labeled signal.
