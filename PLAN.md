@@ -122,7 +122,7 @@ After all tool calls:
 |------|-------------|--------|
 | 1 | Scaffold + SDK install, validator green | **Done** |
 | 2 | Claude call 1 — parse/classify/flags | **Done** |
-| 3 | Deterministic tool routing | Pending |
+| 3 | Deterministic tool routing | **Done** |
 | 4 | Claude call 2 — draft reply + rationale | Pending |
 | 5 | Output assembly + full validate pass | Pending |
 | 6 | Edge case hardening + README | Pending |
@@ -131,8 +131,8 @@ After all tool calls:
 
 | File | Change |
 |------|--------|
-| `package.json` | add `@anthropic-ai/sdk`, fix `fast-uri` vuln |
-| `src/agent.ts` | scaffold: `runAgent` + `triageItem`, 3-tool threshold, valid schema output |
+| `package.json` | add `@anthropic-ai/sdk`, fix `fast-uri` vuln, tsx `--env-file` |
+| `src/agent.ts` | `claudeParse` (Haiku, retry), `routeAndCallTools` (8 flag-driven branches + catch-all), parse-failure fallback, 7/8 tools wired |
 
 ## What Is Not Built
 

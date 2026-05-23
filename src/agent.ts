@@ -9,8 +9,12 @@ import type {
 import {
   create_task,
   escalate,
+  find_slots,
   getToolCallsForItem,
+  hold_slot,
   lookup_policy,
+  search_patient,
+  verify_insurance,
   withItemContext,
 } from "./tools.js";
 
@@ -34,6 +38,12 @@ interface ParseResult {
   flags: ParseFlags;
   reply_recipient: string;
   reply_channel: "email" | "phone" | "portal";
+}
+
+interface RoutingResult {
+  taskIds: string[];
+  escalationRecord: { reason: string; severity: "P0" | "P1" } | null;
+  toolContext: string[];
 }
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
@@ -134,6 +144,224 @@ async function claudeParse(item: InboxItem): Promise<ParseResult | null> {
   return null;
 }
 
+// ── Deterministic tool routing ────────────────────────────────────────────────
+
+async function routeAndCallTools(
+  item: InboxItem,
+  parsed: ParseResult,
+): Promise<RoutingResult> {
+  const taskIds: string[] = [];
+  let escalationRecord: { reason: string; severity: "P0" | "P1" } | null =
+    null;
+  const toolContext: string[] = [];
+  const { flags, extracted_intake: intake } = parsed;
+
+  // ── P0 safeguarding — wins over all other flags ─────────────────────────
+  if (flags.is_safeguarding) {
+    const policy = await lookup_policy({ topic: "safeguarding" });
+    toolContext.push(`Safeguarding policy: ${policy.data.snippets.join(" ")}`);
+
+    const reason =
+      "Safeguarding disclosure — potential harm to child; mandated-reporter escalation required";
+    await escalate({ item_id: item.id, reason, severity: "P0" });
+    toolContext.push(`Escalated P0: ${reason}`);
+    escalationRecord = { reason, severity: "P0" };
+
+    // Policy requires a same-hour clinical lead review task
+    const task = await create_task({
+      assignee: "clinical_lead",
+      title: `SAFEGUARDING review: ${intake.child_name ?? item.id} — same-hour required`,
+      due: todayIso(),
+      notes: `Safeguarding disclosure received. Source: ${item.sender}. Body: ${item.body.slice(0, 300)}`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── P1 same-day cancellation ────────────────────────────────────────────
+  if (flags.is_same_day_cancellation) {
+    if (intake.child_name) {
+      const pat = await search_patient({
+        name: intake.child_name,
+        dob: parseDob(intake.dob_or_age),
+      });
+      toolContext.push(
+        `Patient lookup: ${pat.result_summary}` +
+          (pat.data[0] ? ` — status: ${pat.data[0].status}` : ""),
+      );
+    }
+
+    const policy = await lookup_policy({ topic: "cancellation" });
+    toolContext.push(`Cancellation policy: ${policy.data.snippets.join(" ")}`);
+
+    const reason =
+      "Same-day cancellation — prompt staff action required to manage slot and contact family";
+    await escalate({ item_id: item.id, reason, severity: "P1" });
+    toolContext.push(`Escalated P1: ${reason}`);
+    escalationRecord = { reason, severity: "P1" };
+
+    const task = await create_task({
+      assignee: "front_desk",
+      title: `Same-day cancellation: ${intake.child_name ?? item.id}`,
+      due: todayIso(),
+      notes: `Contact family to reschedule. ${item.body.slice(0, 200)}`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── Clinical question ───────────────────────────────────────────────────
+  if (flags.is_clinical_question) {
+    const policy = await lookup_policy({ topic: "clinical_advice" });
+    toolContext.push(
+      `Clinical advice policy: ${policy.data.snippets.join(" ")}`,
+    );
+
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── Incomplete referral ─────────────────────────────────────────────────
+  if (flags.is_incomplete_referral) {
+    const policy = await lookup_policy({ topic: "service_lines" });
+    toolContext.push(`Service lines policy: ${policy.data.snippets.join(" ")}`);
+
+    const task = await create_task({
+      assignee: "intake",
+      title: `Incomplete referral: ${intake.child_name ?? item.id} — missing info required`,
+      due: nextBusinessDayIso(),
+      notes: `Missing fields: ${parsed.missing_info.join(", ")}. Contact referring provider: ${item.sender}.`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+
+    return { taskIds, escalationRecord, toolContext };
+  }
+
+  // ── New referral / existing patient request ─────────────────────────────
+  if (
+    parsed.classification === "new_referral" ||
+    parsed.classification === "existing_patient_request"
+  ) {
+    let patientRef: string = intake.child_name ?? item.id;
+
+    if (intake.child_name) {
+      const pat = await search_patient({
+        name: intake.child_name,
+        dob: parseDob(intake.dob_or_age),
+      });
+      toolContext.push(`Patient lookup: ${pat.result_summary}`);
+      if (pat.data[0]) {
+        patientRef = pat.data[0].patient_id;
+        toolContext.push(
+          `Existing patient found: ${pat.data[0].name}, status: ${pat.data[0].status}`,
+        );
+      }
+    }
+
+    // Language access policy before slot search so it informs routing
+    if (flags.needs_spanish) {
+      const policy = await lookup_policy({ topic: "language_access" });
+      toolContext.push(
+        `Language access policy: ${policy.data.snippets.join(" ")}`,
+      );
+    }
+
+    if (!intake.payer) {
+      // No insurance info — flag for intake follow-up
+      const policy = await lookup_policy({ topic: "service_lines" });
+      toolContext.push(`Service lines policy: ${policy.data.snippets.join(" ")}`);
+
+      const task = await create_task({
+        assignee: "intake",
+        title: `Missing insurance info: ${intake.child_name ?? item.id}`,
+        due: nextBusinessDayIso(),
+        notes: "No payer information provided — contact family for insurance details before scheduling.",
+      });
+      taskIds.push(task.data.task_id);
+      toolContext.push(task.result_summary);
+
+      return { taskIds, escalationRecord, toolContext };
+    }
+
+    const ins = await verify_insurance({
+      payer: intake.payer,
+      member_id: intake.member_id ?? undefined,
+    });
+    toolContext.push(
+      `Insurance: ${ins.result_summary}` +
+        (ins.data.notes ? ` — ${ins.data.notes}` : "") +
+        (ins.data.copay !== undefined ? `, copay $${ins.data.copay}` : "") +
+        (ins.data.auth_required ? ", auth required" : ""),
+    );
+
+    if (
+      ins.data.status === "out_of_network" ||
+      ins.data.status === "expired" ||
+      ins.data.status === "unknown"
+    ) {
+      const policy = await lookup_policy({ topic: "insurance" });
+      toolContext.push(`Insurance policy: ${policy.data.snippets.join(" ")}`);
+
+      const task = await create_task({
+        assignee: "billing",
+        title: `Insurance issue: ${intake.child_name ?? item.id} — ${ins.data.status}`,
+        due: nextBusinessDayIso(),
+        notes:
+          ins.data.notes ??
+          `Insurance status: ${ins.data.status}. Benefits conversation required before scheduling.`,
+      });
+      taskIds.push(task.data.task_id);
+      toolContext.push(task.result_summary);
+    } else {
+      // in_network — find and hold a slot
+      const discipline = intake.discipline?.[0];
+      const slots = await find_slots({
+        discipline,
+        language: flags.needs_spanish ? "es" : undefined,
+      });
+      toolContext.push(`Slots: ${slots.result_summary}`);
+
+      if (slots.data.length > 0) {
+        const hold = await hold_slot({
+          slot_id: slots.data[0].slot_id,
+          patient_ref: patientRef,
+        });
+        toolContext.push(
+          `Hold: ${hold.result_summary} — ${slots.data[0].provider_name}, ${slots.data[0].start}`,
+        );
+      } else {
+        const task = await create_task({
+          assignee: "intake",
+          title: `No slots available: ${intake.child_name ?? item.id} — manual scheduling needed`,
+          due: nextBusinessDayIso(),
+          notes: `No ${discipline ?? "any"} slots found${flags.needs_spanish ? " (Spanish-speaking provider required)" : ""}. Manual scheduling required.`,
+        });
+        taskIds.push(task.data.task_id);
+        toolContext.push(task.result_summary);
+      }
+    }
+  }
+
+  // ── Catch-all for unmatched classifications ─────────────────────────────
+  // Handles: scheduling (non-same-day), billing_question, complaint, other, etc.
+  if (taskIds.length === 0 && toolContext.length === 0) {
+    const task = await create_task({
+      assignee: "intake",
+      title: `Manual review: ${parsed.classification} — ${intake.child_name ?? item.id}`,
+      due: nextBusinessDayIso(),
+      notes: `Item did not match automated routing. Classification: ${parsed.classification}. Body: ${item.body.slice(0, 300)}`,
+    });
+    taskIds.push(task.data.task_id);
+    toolContext.push(task.result_summary);
+  }
+
+  return { taskIds, escalationRecord, toolContext };
+}
+
 // ── Agent ─────────────────────────────────────────────────────────────────────
 
 export async function runAgent(inbox: InboxItem[]): Promise<ItemOutput[]> {
@@ -173,33 +401,15 @@ async function triageItem(item: InboxItem): Promise<ItemOutput> {
       };
     }
 
-    // ── Log parse result for review (Step 2 checkpoint) ────────────────────
     console.log(
       `[${item.id}] ${parsed.urgency} ${parsed.classification}`,
       JSON.stringify(parsed.flags),
     );
 
-    const taskIds: string[] = [];
-    let escalationRecord: { reason: string; severity: "P0" | "P1" } | null =
-      null;
+    const { taskIds, escalationRecord, toolContext } =
+      await routeAndCallTools(item, parsed);
 
-    // ── SCAFFOLD tool calls (3-tool threshold) — replaced in Step 3 ────────
-    if (item.id === "item_1") {
-      await lookup_policy({ topic: "service_lines" });
-    } else if (item.id === "item_2") {
-      const reason =
-        "Safeguarding disclosure in voicemail — manual review required";
-      await escalate({ item_id: item.id, reason, severity: "P0" });
-      escalationRecord = { reason, severity: "P0" };
-    } else if (item.id === "item_3") {
-      const task = await create_task({
-        assignee: "intake",
-        title: `Scaffold triage: ${item.id}`,
-        due: todayIso(),
-        notes: "Placeholder — full routing in next step",
-      });
-      taskIds.push(task.data.task_id);
-    }
+    console.log(`[${item.id}] tools done, context: ${toolContext.length} entries`);
 
     return {
       item_id: item.id,
@@ -209,11 +419,11 @@ async function triageItem(item: InboxItem): Promise<ItemOutput> {
       extracted_intake: parsed.extracted_intake,
       missing_info: parsed.missing_info,
       tools_called: getToolCallsForItem(item.id),
-      recommended_next_action: "Full triage routing pending (Step 3)",
+      recommended_next_action: "Draft reply and next action pending (Step 4)",
       draft_reply: null,
       task_ids: taskIds,
       escalation: escalationRecord,
-      decision_rationale: `Parsed by LLM: ${parsed.classification}, ${parsed.urgency}. Full routing pending.`,
+      decision_rationale: `Routing complete. Context: ${toolContext.join(" | ")}`,
     };
   });
 }
@@ -222,6 +432,20 @@ async function triageItem(item: InboxItem): Promise<ItemOutput> {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function nextBusinessDayIso(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  while (date.getDay() === 0 || date.getDay() === 6) {
+    date.setDate(date.getDate() + 1);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function parseDob(dobOrAge: string | null): string | undefined {
+  if (!dobOrAge) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(dobOrAge) ? dobOrAge : undefined;
 }
 
 function nullIntake(): ExtractedIntake {
