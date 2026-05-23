@@ -8,6 +8,7 @@ import type {
 } from "./types.js";
 import {
   create_task,
+  draft_message,
   escalate,
   find_slots,
   getToolCallsForItem,
@@ -44,6 +45,12 @@ interface RoutingResult {
   taskIds: string[];
   escalationRecord: { reason: string; severity: "P0" | "P1" } | null;
   toolContext: string[];
+}
+
+interface GenerateResult {
+  draft_reply: string;
+  recommended_next_action: string;
+  decision_rationale: string;
 }
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
@@ -101,6 +108,46 @@ OUTPUT SCHEMA (JSON only):
   "reply_channel": "email|phone|portal"
 }`;
 
+const GENERATE_SYSTEM = `You are a reply-drafting assistant for Cedar Kids Therapy, a pediatric therapy practice.
+Draft a professional, empathetic outbound message and recommend the next staff action.
+
+HARD RULES — any violation is a critical failure:
+1. NO clinical advice, diagnoses, or treatment recommendations in the reply.
+2. Do NOT imply that any message has been sent, appointment has been scheduled, or action has already been taken. The draft has not been reviewed or sent yet.
+3. SAFEGUARDING: if is_safeguarding is true, draft ONLY a brief neutral acknowledgement ("Thank you for reaching out; a team member will follow up shortly"). Do NOT reference the concern, investigate, or provide any clinical or procedural framing. The item requires human review before any real communication.
+4. If needs_spanish is true: write draft_reply entirely in Spanish.
+5. Do not invent or add PHI not present in the original message.
+
+TONE: Warm, professional, appropriate for families or referring providers.
+
+Return ONLY a valid JSON object — no prose, no markdown:
+{
+  "draft_reply": "<outbound message body — plain text, no HTML>",
+  "recommended_next_action": "<one sentence: what the reviewing staff member should do next>",
+  "decision_rationale": "<one to two sentences: why this routing and reply were chosen>"
+}`;
+
+function buildGenerateUserContent(
+  item: InboxItem,
+  parsed: ParseResult,
+  toolContext: string[],
+): string {
+  return `Original message:
+Channel: ${item.channel}
+Sender: ${item.sender}
+Subject: ${item.subject}
+Body: ${item.body}
+
+Classification: ${parsed.classification} (${parsed.urgency})
+Flags: ${JSON.stringify(parsed.flags)}
+Reply to: ${parsed.reply_recipient} via ${parsed.reply_channel}
+
+Routing context (what tools found):
+${toolContext.length > 0 ? toolContext.join("\n") : "(no tool results)"}
+
+Draft a reply and recommended next action following all hard rules.`;
+}
+
 function buildParseUserContent(item: InboxItem): string {
   return `Channel: ${item.channel}
 Sender: ${item.sender}
@@ -136,6 +183,36 @@ async function claudeParse(item: InboxItem): Promise<ParseResult | null> {
       const raw =
         response.content[0].type === "text" ? response.content[0].text : "";
       return JSON.parse(extractJson(raw)) as ParseResult;
+    } catch {
+      if (attempt === MAX_RETRIES) return null;
+    }
+  }
+
+  return null;
+}
+
+async function claudeGenerate(
+  item: InboxItem,
+  parsed: ParseResult,
+  toolContext: string[],
+): Promise<GenerateResult | null> {
+  const userContent = buildGenerateUserContent(item, parsed, toolContext);
+  const MAX_RETRIES = 2;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const content =
+      attempt === 0 ? userContent : `${userContent}\n\nReturn ONLY valid JSON.`;
+    try {
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 600,
+        system: GENERATE_SYSTEM,
+        messages: [{ role: "user", content }],
+      });
+
+      const raw =
+        response.content[0].type === "text" ? response.content[0].text : "";
+      return JSON.parse(extractJson(raw)) as GenerateResult;
     } catch {
       if (attempt === MAX_RETRIES) return null;
     }
@@ -411,6 +488,17 @@ async function triageItem(item: InboxItem): Promise<ItemOutput> {
 
     console.log(`[${item.id}] tools done, context: ${toolContext.length} entries`);
 
+    const generateResult = await claudeGenerate(item, parsed, toolContext);
+
+    if (generateResult) {
+      await draft_message({
+        recipient: parsed.reply_recipient,
+        channel: parsed.reply_channel,
+        body: generateResult.draft_reply,
+        language: parsed.flags.needs_spanish ? "es" : "en",
+      });
+    }
+
     return {
       item_id: item.id,
       classification: parsed.classification,
@@ -419,11 +507,15 @@ async function triageItem(item: InboxItem): Promise<ItemOutput> {
       extracted_intake: parsed.extracted_intake,
       missing_info: parsed.missing_info,
       tools_called: getToolCallsForItem(item.id),
-      recommended_next_action: "Draft reply and next action pending (Step 4)",
-      draft_reply: null,
+      recommended_next_action:
+        generateResult?.recommended_next_action ??
+        "Manual review required — draft generation failed",
+      draft_reply: generateResult?.draft_reply ?? null,
       task_ids: taskIds,
       escalation: escalationRecord,
-      decision_rationale: `Routing complete. Context: ${toolContext.join(" | ")}`,
+      decision_rationale:
+        generateResult?.decision_rationale ??
+        `Routing complete. Context: ${toolContext.join(" | ")}`,
     };
   });
 }
