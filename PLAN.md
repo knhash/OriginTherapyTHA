@@ -121,7 +121,7 @@ After all tool calls:
 | Step | Description | Status |
 |------|-------------|--------|
 | 1 | Scaffold + SDK install, validator green | **Done** |
-| 2 | Claude call 1 — parse/classify/flags | Pending |
+| 2 | Claude call 1 — parse/classify/flags | **Done** |
 | 3 | Deterministic tool routing | Pending |
 | 4 | Claude call 2 — draft reply + rationale | Pending |
 | 5 | Output assembly + full validate pass | Pending |

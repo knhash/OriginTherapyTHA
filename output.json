@@ -1,30 +1,32 @@
 {
-  "generated_at": "2026-05-23T20:45:40.188Z",
+  "generated_at": "2026-05-23T20:53:35.876Z",
   "summary": {
     "total_items": 8,
     "p0_count": 1,
-    "p1_count": 0,
+    "p1_count": 1,
     "requires_human_review_count": 8
   },
   "items": [
     {
       "item_id": "item_1",
-      "classification": "other",
+      "classification": "new_referral",
       "urgency": "P2",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
-        "dob_or_age": null,
-        "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
-        "payer": null,
-        "member_id": null
+        "child_name": "Emma Lee",
+        "dob_or_age": "2018-09-04",
+        "parent_contact": "Daniel Lee, 555-0101, daniel.lee@example.com",
+        "discipline": [
+          "SLP"
+        ],
+        "diagnosis_or_concern": "articulation delay and reduced intelligibility",
+        "payer": "Blue Cross Blue Shield PPO",
+        "member_id": "BCBS-884200"
       },
       "missing_info": [],
       "tools_called": [
         {
-          "call_id": "01KSB9C8ETEHVZQC1YF8C7A0GN",
+          "call_id": "01KSB9TR7HD4RADWZEAXB728CF",
           "name": "lookup_policy",
           "args": {
             "topic": "service_lines"
@@ -32,11 +34,11 @@
           "result_summary": "2 policy snippets for service_lines"
         }
       ],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [],
       "escalation": null,
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: new_referral, P2. Full routing pending."
     },
     {
       "item_id": "item_2",
@@ -44,181 +46,209 @@
       "urgency": "P0",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
-        "dob_or_age": null,
-        "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
+        "child_name": "Leo",
+        "dob_or_age": "6 years old",
+        "parent_contact": "555-0102",
+        "discipline": [
+          "SLP"
+        ],
+        "diagnosis_or_concern": "speech therapy evaluation request; behavioral change (increased clinginess) following rough handling by father during weekend visits",
         "payer": null,
         "member_id": null
       },
-      "missing_info": [],
+      "missing_info": [
+        "child DOB (exact)",
+        "insurance/payer information",
+        "insurance member ID"
+      ],
       "tools_called": [
         {
-          "call_id": "01KSB9C8EVWCCZE6SW3QPBFNKQ",
+          "call_id": "01KSB9TS03RMAB727K52MWW80R",
           "name": "escalate",
           "args": {
             "item_id": "item_2",
             "reason": "Safeguarding disclosure in voicemail — manual review required",
             "severity": "P0"
           },
-          "result_summary": "created escalation esc_01ksb9c8ev0z4q953ayvmdpv70 severity P0"
+          "result_summary": "created escalation esc_01ksb9ts038c670y16pytp8yd8 severity P0"
         }
       ],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [],
       "escalation": {
         "reason": "Safeguarding disclosure in voicemail — manual review required",
         "severity": "P0"
       },
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: safeguarding, P0. Full routing pending."
     },
     {
       "item_id": "item_3",
-      "classification": "other",
+      "classification": "new_referral",
       "urgency": "P2",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
-        "dob_or_age": null,
-        "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
-        "payer": null,
-        "member_id": null
+        "child_name": "Owen Brooks",
+        "dob_or_age": "2020-02-11",
+        "parent_contact": "555-0103, rachel.brooks@example.com",
+        "discipline": [
+          "OT"
+        ],
+        "diagnosis_or_concern": "sensory processing and feeding tolerance",
+        "payer": "Kaiser HMO",
+        "member_id": "KSR-4471"
       },
       "missing_info": [],
       "tools_called": [
         {
-          "call_id": "01KSB9C8EW6Q0V3JXX4K41KMDS",
+          "call_id": "01KSB9TRF0F2EMXPYPXB147Q9X",
           "name": "create_task",
           "args": {
             "assignee": "intake",
-            "due": "2026-04-28",
+            "due": "2026-05-23",
             "notes": "Placeholder — full routing in next step",
             "title": "Scaffold triage: item_3"
           },
-          "result_summary": "created task task_01ksb9c8evw30hrdffmq2endjd for intake"
+          "result_summary": "created task task_01ksb9treznecjfp233wf1kfs6 for intake"
         }
       ],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [
-        "task_01ksb9c8evw30hrdffmq2endjd"
+        "task_01ksb9treznecjfp233wf1kfs6"
       ],
       "escalation": null,
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: new_referral, P2. Full routing pending."
     },
     {
       "item_id": "item_4",
-      "classification": "other",
+      "classification": "new_referral",
       "urgency": "P2",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
-        "dob_or_age": null,
-        "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
-        "payer": null,
-        "member_id": null
+        "child_name": "Mateo Ramirez",
+        "dob_or_age": "2019-03-15",
+        "parent_contact": "Carla Mendez, 555-0104, carla.mendez@example.com",
+        "discipline": [
+          "PT"
+        ],
+        "diagnosis_or_concern": "toe walking and frequent tripping",
+        "payer": "Aetna PPO",
+        "member_id": "AET-9910"
       },
       "missing_info": [],
       "tools_called": [],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [],
       "escalation": null,
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: new_referral, P2. Full routing pending."
     },
     {
       "item_id": "item_5",
-      "classification": "other",
+      "classification": "clinical_question",
       "urgency": "P2",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
-        "dob_or_age": null,
-        "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
+        "child_name": "Ava",
+        "dob_or_age": "4 years old",
+        "parent_contact": "Jordan Kim",
+        "discipline": [
+          "SLP"
+        ],
+        "diagnosis_or_concern": "inability to produce R sounds",
         "payer": null,
         "member_id": null
       },
-      "missing_info": [],
+      "missing_info": [
+        "parent phone number or email",
+        "insurance information"
+      ],
       "tools_called": [],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [],
       "escalation": null,
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: clinical_question, P2. Full routing pending."
     },
     {
       "item_id": "item_6",
-      "classification": "other",
+      "classification": "new_referral",
       "urgency": "P2",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
+        "child_name": "Sam Taylor",
         "dob_or_age": null,
         "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
+        "discipline": [
+          "SLP"
+        ],
+        "diagnosis_or_concern": "speech delay in a school-age child",
         "payer": null,
         "member_id": null
       },
-      "missing_info": [],
+      "missing_info": [
+        "DOB",
+        "parent/guardian contact",
+        "insurance/payer",
+        "member ID"
+      ],
       "tools_called": [],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [],
       "escalation": null,
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: new_referral, P2. Full routing pending."
     },
     {
       "item_id": "item_7",
-      "classification": "other",
+      "classification": "new_referral",
       "urgency": "P2",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
-        "dob_or_age": null,
-        "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
-        "payer": null,
-        "member_id": null
+        "child_name": "Isabella Lopez",
+        "dob_or_age": "5 years old",
+        "parent_contact": "555-0107",
+        "discipline": [
+          "SLP"
+        ],
+        "diagnosis_or_concern": "speech evaluation needed",
+        "payer": "Medicaid",
+        "member_id": "MCD-55320"
       },
-      "missing_info": [],
+      "missing_info": [
+        "child DOB (only age provided)"
+      ],
       "tools_called": [],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [],
       "escalation": null,
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: new_referral, P2. Full routing pending."
     },
     {
       "item_id": "item_8",
-      "classification": "other",
-      "urgency": "P2",
+      "classification": "scheduling",
+      "urgency": "P1",
       "requires_human_review": true,
       "extracted_intake": {
-        "child_name": null,
-        "dob_or_age": null,
-        "parent_contact": null,
-        "discipline": null,
-        "diagnosis_or_concern": null,
+        "child_name": "Noah Patel",
+        "dob_or_age": "2017-11-02",
+        "parent_contact": "anita.patel@example.com, 555-0108",
+        "discipline": [
+          "OT"
+        ],
+        "diagnosis_or_concern": "Vomiting at school",
         "payer": null,
         "member_id": null
       },
       "missing_info": [],
       "tools_called": [],
-      "recommended_next_action": "Scaffold placeholder — full triage pending",
+      "recommended_next_action": "Full triage routing pending (Step 3)",
       "draft_reply": null,
       "task_ids": [],
       "escalation": null,
-      "decision_rationale": "Scaffold placeholder — full triage pending"
+      "decision_rationale": "Parsed by LLM: scheduling, P1. Full routing pending."
     }
   ]
 }
