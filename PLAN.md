@@ -124,8 +124,8 @@ After all tool calls:
 | 2 | Claude call 1 — parse/classify/flags | **Done** |
 | 3 | Deterministic tool routing | **Done** |
 | 4 | Claude call 2 — draft reply + rationale | **Done** |
-| 5 | Output assembly + full validate pass | Pending |
-| 6 | Edge case hardening + README | Pending |
+| 5 | Output assembly + full validate pass | **Done** |
+| 6 | Edge case hardening + README | **Done** |
 
 ## Files Changed
 

@@ -478,15 +478,8 @@ async function triageItem(item: InboxItem): Promise<ItemOutput> {
       };
     }
 
-    console.log(
-      `[${item.id}] ${parsed.urgency} ${parsed.classification}`,
-      JSON.stringify(parsed.flags),
-    );
-
     const { taskIds, escalationRecord, toolContext } =
       await routeAndCallTools(item, parsed);
-
-    console.log(`[${item.id}] tools done, context: ${toolContext.length} entries`);
 
     const generateResult = await claudeGenerate(item, parsed, toolContext);
 
