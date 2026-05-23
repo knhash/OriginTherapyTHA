@@ -1,0 +1,3 @@
+- Reinforcement learning
+    - Setup self learning loop with epsilon greedy / multi armed bandits to train a local model on decision patterns. Use LLM initially to decide, then slowly deprecate its use by using it as a judge instead with some probability to fine tune the local model.
+    - Two distinct components: MAB controls the *exploration policy* (when to use local model vs. LLM), while the LLM acts as a *reward model* (scores local model outputs to generate the training signal). End state: cheap local inference for routine classifications, LLM only for edge cases.
